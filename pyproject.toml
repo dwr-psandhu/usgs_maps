@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "usgs-maps"
+description = "USGS NWIS Maps and Dashboards"
+license = { text = "MIT" }
+authors = [
+    { name = "Nicky Sandhu", email = "psandhu@water.ca.gov" }
+]
+urls = { "Homepage" = "https://github.com/dwr-psandhu/usgs-maps" }
+keywords = ["usgs-maps", "nwis"]
+classifiers = [
+    "Programming Language :: Python :: 3.10"
+]
+dynamic = ["version"]
+dependencies = [
+    "ipykernel",
+    "pyarrow",
+    "pandas",
+    "dask",
+    "numba",
+    "aiohttp",
+    "requests",
+    "httpx",
+    "pyyaml",
+    "click",
+    "decorator",
+    "lxml",
+    "html5lib",
+    "beautifulsoup4",
+    "cartopy",
+    "geopandas",
+    "holoviews",
+    "hvplot",
+    "matplotlib",
+    "bokeh",
+    "geoviews",
+    "spatialpandas",
+    "panel",
+    "tqdm",
+    "dataretrieval",
+    "vtools @ git+https://github.com/CADWRDeltaModeling/vtools3",
+    "dvue @ git+https://github.com/CADWRDeltaModeling/dvue"
+]
+
+[project.scripts]
+usgs_maps = "usgs_maps.cli:cli"
+
+[project.entry-points."dvue.plugins"]
+usgs_maps = "usgs_maps.readers:register_readers"
+
+[tool.setuptools_scm]
+write_to = "usgs_maps/_version.py"
+fallback_version = "0.0.0"

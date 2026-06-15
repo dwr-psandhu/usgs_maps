@@ -1,0 +1,21 @@
+# Example cache-build config for usgs_maps.
+# Build with:  usgs_maps build-cache --config usgs_cache_config.yml
+#         or:  python build_usgs_cache.py --config usgs_cache_config.yml
+#
+# At least one of `states` or `bbox` is required.
+
+states: [ca]                          # one or more 2-letter state codes
+# bbox: "-122.5,37.5,-121.0,38.5"     # optional lat/lon box "w,s,e,n"
+                                      #   (post-filters the state catalog when set)
+
+param_cds:                            # USGS parameter codes (omit for defaults)
+  - "00060"   # Discharge (cfs)
+  - "00065"   # Gage height (ft)
+  - "00010"   # Water temperature (deg C)
+  - "00095"   # Specific conductance (uS/cm)
+
+# site_types: ST                      # optional NWIS siteType filter (e.g. ST = stream)
+
+start: "2022-01-01"                   # series-download window start (YYYY-MM-DD)
+end: "2024-12-31"                     # series-download window end
+download: true                        # download series after building the catalog

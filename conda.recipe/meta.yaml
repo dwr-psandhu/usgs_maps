@@ -1,0 +1,46 @@
+{% set data = load_setup_py_data() %}
+
+package:
+  name: usgs-maps
+  version: {{ data['version'] }}
+
+source:
+  path: ..
+
+build:
+  # If the installation is complex, or different between Unix and Windows, use
+  # separate bld.bat and build.sh files instead of this key.
+  script: {{ PYTHON }} -m pip install --no-deps --ignore-installed -vv .
+  noarch: python
+
+  entry_points:
+    {% for entry in data['entry_points']['console_scripts'] %}
+      - {{ entry.split('=')[0].strip() }} = {{ entry.split('=')[1].strip() }}
+    {% endfor %}
+
+
+requirements:
+  host:
+    - python
+    - pip
+  run:
+    - python
+    # dependencies are defined in setup.py
+    {% for dep in data['install_requires'] %}
+    - {{ dep.lower() }}
+    {% endfor %}
+
+test:
+  source_files:
+    - tests
+  requires:
+    - pytest
+    - pytest-cov
+  commands:
+    - pytest -m "not live"
+
+about:
+  home: https://github.com/dwr-psandhu/usgs-maps
+  summary: USGS NWIS Maps and Dashboards
+  license: {{ data.get('license') }}
+  license_file: LICENSE

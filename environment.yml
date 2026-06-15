@@ -1,0 +1,32 @@
+name: usgs_maps
+channels:
+  - cadwr-dms
+  - conda-forge
+dependencies:
+  - python
+  - pip
+  - pyarrow
+  - pandas
+  - dask
+  - aiohttp
+  - requests
+  - httpx
+  - pyyaml
+  - click
+  - decorator
+  - lxml
+  - html5lib
+  - bs4
+  - cartopy
+  - geopandas
+  - holoviews
+  - hvplot
+  - bokeh
+  - geoviews
+  - panel
+  - panel-material-ui
+  - diskcache
+  - tqdm
+  - dataretrieval
+  - vtools3
+  # dvue is installed via pip (git+), see pyproject.toml / run_server.sh

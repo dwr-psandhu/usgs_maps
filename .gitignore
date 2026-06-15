@@ -1,0 +1,26 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# setuptools_scm generated version file
+usgs_maps/_version.py
+
+# Local cache database (downloaded NWIS data + catalog)
+usgs_db/
+
+# Test / CI artifacts
+.pytest_cache/
+junit.xml
+.coverage
+htmlcov/
+
+# Dask
+dask-worker-space/
+
+# Editor
+.vscode/
+.idea/
