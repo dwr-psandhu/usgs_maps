@@ -378,6 +378,16 @@ class USGSDataUIManager(TimeSeriesDataUIManager):
     def build_station_name(self, r):
         return str(r["site_no"])
 
+    def get_convertible_unit_groups(self):
+        """Unit groups for dual y-axis from USGS NWIS data.
+
+        USGS NWIS parameter units come from :data:`~usgs_maps.usgs.PARAM_INFO`.
+        Unit strings are compared after lowercasing in the renderer.
+        """
+        return [
+            {"ppt", "us/cm"},
+        ]
+
     def get_time_range(self, dfcat):
         if self.time_range is None:
             self.time_range = (
