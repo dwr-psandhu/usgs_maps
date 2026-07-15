@@ -388,6 +388,19 @@ class USGSDataUIManager(TimeSeriesDataUIManager):
             {"ppt", "us/cm"},
         ]
 
+    # Reference secondary axis for common NWIS unit pairs.
+    _SECONDARY_AXIS_SPECS = {
+        "cfs":   {"label": "m\u00b3/s",      "js_code": "tick / 35.3147"},
+        "ft":    {"label": "meters",          "js_code": "tick * 0.3048"},
+        "deg c": {"label": "\u00b0F",         "js_code": "tick * 1.8 + 32"},
+        "us/cm": {"label": "PSU\u2248",       "js_code": "tick / 1600"},
+        "ppt":   {"label": "\u00b5S/cm\u2248", "js_code": "tick * 1600"},
+    }
+
+    def get_secondary_axis_spec(self, unit: str):
+        """Reference secondary axis for common USGS NWIS unit pairs."""
+        return self._SECONDARY_AXIS_SPECS.get(unit.lower())
+
     def get_time_range(self, dfcat):
         if self.time_range is None:
             self.time_range = (
