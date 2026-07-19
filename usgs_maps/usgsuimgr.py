@@ -388,18 +388,26 @@ class USGSDataUIManager(TimeSeriesDataUIManager):
             {"ppt", "us/cm"},
         ]
 
-    # Reference secondary axis for common NWIS unit pairs.
+    # Reference secondary axis for common NWIS unit pairs (linear only).
+    # EC ↔ PSU is non-linear; handled via get_annotation_hook.
     _SECONDARY_AXIS_SPECS = {
-        "cfs":   {"label": "m\u00b3/s",      "js_code": "tick / 35.3147"},
-        "ft":    {"label": "meters",          "js_code": "tick * 0.3048"},
-        "deg c": {"label": "\u00b0F",         "js_code": "tick * 1.8 + 32"},
-        "us/cm": {"label": "PSU\u2248",       "js_code": "tick / 1600"},
-        "ppt":   {"label": "\u00b5S/cm\u2248", "js_code": "tick * 1600"},
+        "cfs":   {"label": "m\u00b3/s", "js_code": "tick / 35.3147"},
+        "ft":    {"label": "meters",    "js_code": "tick * 0.3048"},
+        "deg c": {"label": "\u00b0F",   "js_code": "tick * 1.8 + 32"},
     }
 
     def get_secondary_axis_spec(self, unit: str):
-        """Reference secondary axis for common USGS NWIS unit pairs."""
+        """Reference secondary axis for common USGS NWIS unit pairs (linear)."""
         return self._SECONDARY_AXIS_SPECS.get(unit.lower())
+
+    _EC_UNITS = {"us/cm"}
+
+    def get_annotation_hook(self, unit: str, lo, hi):
+        """PSU reference lines for NWIS specific-conductance axes; None otherwise."""
+        if unit.lower() in self._EC_UNITS and lo is not None and hi is not None:
+            from dvue.plotutils import make_psu_reference_lines_hook
+            return make_psu_reference_lines_hook(lo, hi)
+        return None
 
     def get_time_range(self, dfcat):
         if self.time_range is None:
