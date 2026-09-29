@@ -72,6 +72,12 @@ def main():
         show=not args.no_show,
         allow_websocket_origin=["*"],
         title="USGS NWIS Map Explorer",
+        # Bokeh's default (300s) expires the reconnect token after a few
+        # minutes idle; the browser's automatic reconnect then fails
+        # permanently with "Token is expired" until the page is reloaded.
+        # No unused_session_lifetime override needed here: make_app() has no
+        # session registry, so Bokeh's short default already GCs promptly.
+        session_token_expiration=2_592_000,
     )
 
 

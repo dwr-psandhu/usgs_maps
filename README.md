@@ -88,6 +88,9 @@ Mirrors `cdec_maps`:
 - `run_server.sh` — installs the package and starts `usgsui.py` on `0.0.0.0:80`.
 - `run_server_cache_build.sh` — runs `build_usgs_cache.py` in the background and
   serves `usgs_maps_servable.py` with `--allow-websocket-origin="*"`.
+- `CARTO_API_KEY` — set it in the environment (an App Service application setting
+  in production) to a [CARTO basemaps API key](https://carto.com/basemaps/apikey);
+  without it the map tiles show CARTO's "API key required" watermark.
 
 ## dvue plugin
 
