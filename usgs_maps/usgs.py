@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 import warnings
 from contextlib import contextmanager
 
@@ -56,6 +57,11 @@ PARAM_INFO = {
 
 #: Default parameter codes displayed by the dashboard / built into the cache.
 DEFAULT_PARAM_CDS = ["00060", "00065", "00010", "00095", "00400", "63680"]
+
+#: The statewide site-service query is large and NWIS sometimes drops the
+#: response; retry before giving up (delay grows by this many seconds per attempt).
+CATALOG_QUERY_ATTEMPTS = 3
+CATALOG_QUERY_RETRY_DELAY = 30
 
 #: NWIS ``data_type_cd`` (from ``seriesCatalogOutput``) -> internal duration code.
 #: ``uv`` = unit (instantaneous) values; ``dv`` = daily values.
@@ -228,18 +234,29 @@ class Reader(param.Parameterized):
         return catalog
 
     def _fetch_site_catalog(self, nwis, param_cds, site_types, **major_filter):
-        """Single NWIS site-service query with ``seriesCatalogOutput=True``."""
+        """Single NWIS site-service query with ``seriesCatalogOutput=True``.
+
+        The statewide query is large and NWIS sometimes drops the response, so a
+        failed query is retried with a growing delay before giving up (``None``).
+        """
         kwargs = dict(major_filter)
         kwargs["parameterCd"] = param_cds
         kwargs["seriesCatalogOutput"] = True
         if site_types:
             kwargs["siteType"] = site_types
-        try:
-            with _ignore_dataretrieval_warnings():
-                df, _ = nwis.get_info(**kwargs)
-        except Exception as exc:
-            logger.warning("site-service query failed for %s: %s", major_filter, exc)
-            return None
+        for attempt in range(1, CATALOG_QUERY_ATTEMPTS + 1):
+            try:
+                with _ignore_dataretrieval_warnings():
+                    df, _ = nwis.get_info(**kwargs)
+                break
+            except Exception as exc:
+                logger.warning(
+                    "site-service query failed for %s (attempt %d/%d): %s",
+                    major_filter, attempt, CATALOG_QUERY_ATTEMPTS, exc,
+                )
+                if attempt == CATALOG_QUERY_ATTEMPTS:
+                    return None
+                time.sleep(CATALOG_QUERY_RETRY_DELAY * attempt)
         if df is None or len(df) == 0:
             return None
         return pd.DataFrame(df)
@@ -311,10 +328,19 @@ class Reader(param.Parameterized):
     def save_all_stations_info(
         self, state_cds=None, bbox=None, param_cds=None, site_types=None
     ):
-        """Build the catalog and persist it to ``usgs_sites_catalog.csv``."""
+        """Build the catalog and persist it to ``usgs_sites_catalog.csv``.
+
+        An empty result means the NWIS query failed or matched nothing; it is
+        never written, so the last good catalog (which the web app reads) survives.
+        """
         catalog = self.read_sites_catalog(
             state_cds=state_cds, bbox=bbox, param_cds=param_cds, site_types=site_types
         )
+        if len(catalog) == 0:
+            raise RuntimeError(
+                "NWIS returned no catalog rows; keeping the existing "
+                f"{self.catalog_csv_path()} unchanged"
+            )
         out = pd.DataFrame(catalog.drop(columns="geometry"))
         build_job.atomic_to_csv(out, self.catalog_csv_path(), index=False)
         logger.info("save_all_stations_info: wrote %d rows to %s",

@@ -2,8 +2,9 @@
 
 import geopandas as gpd
 import pandas as pd
+import pytest
 
-from usgs_maps import usgs
+from usgs_maps import build_job, usgs, usgs_cache_build
 
 
 def test_param_helpers():
@@ -53,6 +54,67 @@ def test_save_and_read_saved_catalog(catalog_reader):
     # leading-zero preservation across CSV roundtrip
     assert reloaded["site_no"].map(type).eq(str).all()
     assert "11303500" in set(reloaded["site_no"])
+
+
+class TestCatalogProtection:
+    """A failed NWIS query must never replace the last good catalog."""
+
+    @staticmethod
+    def _empty_catalog_result(monkeypatch):
+        # What read_sites_catalog returns when every NWIS query failed or matched nothing.
+        monkeypatch.setattr(
+            usgs.Reader, "read_sites_catalog", lambda self, **kw: self._empty_catalog()
+        )
+
+    def test_empty_result_keeps_existing_catalog(self, reader, monkeypatch):
+        good = pd.DataFrame({"site_no": ["11447650"], "param_cd": ["00060"]})
+        good.to_csv(reader.catalog_csv_path(), index=False)
+        before = open(reader.catalog_csv_path()).read()
+        self._empty_catalog_result(monkeypatch)
+
+        with pytest.raises(RuntimeError, match="no catalog rows"):
+            reader.save_all_stations_info(state_cds=["ca"])
+
+        assert open(reader.catalog_csv_path()).read() == before
+
+    def test_build_with_failed_query_fails_and_records_status(self, tmp_path, monkeypatch):
+        dbase = str(tmp_path / "usgs_db")
+        self._empty_catalog_result(monkeypatch)
+
+        with pytest.raises(RuntimeError):
+            usgs_cache_build.run_build(dbase_dir=dbase, state_cds=["ca"])
+
+        assert build_job.read_status(dbase)["state"] == "failed"
+
+    def test_dropped_response_is_retried(self, reader, monkeypatch):
+        monkeypatch.setattr(usgs, "CATALOG_QUERY_RETRY_DELAY", 0)
+        calls = []
+
+        class FakeNwis:
+            @staticmethod
+            def get_info(**kwargs):
+                calls.append(1)
+                if len(calls) < 3:
+                    raise ConnectionError("Response ended prematurely")
+                return pd.DataFrame({"site_no": ["1"]}), None
+
+        out = reader._fetch_site_catalog(FakeNwis, ["00060"], None, stateCd="ca")
+
+        assert len(calls) == 3
+        assert list(out["site_no"]) == ["1"]
+
+    def test_gives_up_after_all_attempts(self, reader, monkeypatch):
+        monkeypatch.setattr(usgs, "CATALOG_QUERY_RETRY_DELAY", 0)
+        calls = []
+
+        class FakeNwis:
+            @staticmethod
+            def get_info(**kwargs):
+                calls.append(1)
+                raise ConnectionError("Response ended prematurely")
+
+        assert reader._fetch_site_catalog(FakeNwis, ["00060"], None, stateCd="ca") is None
+        assert len(calls) == usgs.CATALOG_QUERY_ATTEMPTS
 
 
 def test_bbox_filter():
