@@ -52,9 +52,9 @@ param(
     [string]$AppDir = "/home/data/usgs_maps",
     [string]$Cron = "0 11 * * *",
     [int]$ReplicaTimeoutSeconds = 28800,
-    [int]$ReplicaRetryLimit = 1,
-    [double]$Cpu = 1.0,
-    [string]$Memory = "2Gi",
+    [int]$ReplicaRetryLimit = 0,
+    [double]$Cpu = 4.0,
+    [string]$Memory = "8Gi",
     [switch]$StartNow,
     [switch]$WhatIf
 )
