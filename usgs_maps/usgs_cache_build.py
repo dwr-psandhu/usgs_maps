@@ -24,7 +24,7 @@ import logging
 import pandas as pd
 import tqdm
 
-from . import usgs
+from . import build_job, usgs
 
 logger = logging.getLogger(__name__)
 
@@ -52,8 +52,12 @@ def build_catalog(reader, state_cds=None, bbox=None, param_cds=None, site_types=
     return catalog
 
 
-def download_all_series(reader, catalog, start=None, end=None):
-    """Download every catalog series into the Parquet cache (gap-filling)."""
+def download_all_series(reader, catalog, start=None, end=None, heartbeat=None):
+    """Download every catalog series into the Parquet cache (gap-filling).
+
+    Returns ``{"ok", "failed", "failed_items"}``; *heartbeat* (if given) is called
+    after each series so a build lock stays fresh.
+    """
     if end is None:
         end = pd.Timestamp.now().strftime("%Y-%m-%d")
     if start is None:
@@ -61,7 +65,8 @@ def download_all_series(reader, catalog, start=None, end=None):
         start = (pd.Timestamp(end) - pd.DateOffset(years=2)).strftime("%Y-%m-%d")
 
     n_ok = n_fail = 0
-    for _, row in tqdm.tqdm(catalog.iterrows(), total=len(catalog), desc="usgs"):
+    failed_items = []
+    for _, row in tqdm.tqdm(catalog.iterrows(), total=len(catalog), desc="usgs", mininterval=30):
         try:
             reader.read_station_data(
                 str(row["site_no"]),
@@ -73,11 +78,17 @@ def download_all_series(reader, catalog, start=None, end=None):
             n_ok += 1
         except Exception as exc:
             n_fail += 1
+            failed_items.append(
+                f"{row.get('site_no')}/{row.get('param_cd')}/{row.get('duration_code')}"
+            )
             logger.warning(
                 "download failed for %s/%s/%s: %s",
                 row.get("site_no"), row.get("param_cd"), row.get("duration_code"), exc,
             )
+        if heartbeat:
+            heartbeat()
     logger.info("download_all_series: %d ok, %d failed", n_ok, n_fail)
+    return {"ok": n_ok, "failed": n_fail, "failed_items": failed_items}
 
 
 def run_build(
@@ -113,7 +124,14 @@ def run_build(
         raise ValueError("Cache build requires at least one of --state or --bbox")
 
     reader = usgs.Reader(dbase_dir=dbase_dir)
-    catalog = build_catalog(reader, state_cds, bbox, param_cds, site_types)
-    if download:
-        download_all_series(reader, catalog, start, end)
-    return catalog
+    built = {}
+
+    def build(heartbeat):
+        built["catalog"] = build_catalog(reader, state_cds, bbox, param_cds, site_types)
+        heartbeat()
+        if not download:
+            return {}
+        return download_all_series(reader, built["catalog"], start, end, heartbeat)
+
+    build_job.run_locked_build(dbase_dir, build, name="usgs")
+    return built["catalog"]

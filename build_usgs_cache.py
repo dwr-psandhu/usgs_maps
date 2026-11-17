@@ -1,7 +1,7 @@
 """Standalone cache-build script for usgs_maps (server/cron use).
 
 Builds the USGS NWIS catalog and pre-downloads series into the Parquet cache.
-This is the script invoked by ``run_server_cache_build.sh``.
+This is the script invoked by ``run_cache_job.sh`` (the scheduled Container Apps Job).
 
 Examples
 --------

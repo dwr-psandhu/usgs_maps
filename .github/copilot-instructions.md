@@ -43,11 +43,12 @@ flake8 usgs_maps tests
 | `usgs_maps/usgsuimgr.py` | dvue integration: `USGSDataReferenceReader`, `USGSDataReference`, `USGSDataUIManager`, `USGSTimeSeriesPlotAction`, `show_usgs_ui()` |
 | `usgs_maps/readers.py` | dvue plugin: `register_readers()` → `ReaderRegistry.register("usgs", …)` |
 | `usgs_maps/maps.py` | Geo helpers: bbox/polygon filtering, lat/lon → GeoDataFrame |
-| `usgs_maps/usgs_cache_build.py` | Cache builder: `run_build()`, `build_catalog()`, `download_all_series()` |
+| `usgs_maps/usgs_cache_build.py` | Cache builder: `run_build()` (locked, writes `build_status.json`), `build_catalog()`, `download_all_series()` |
+| `usgs_maps/build_job.py` | Atomic parquet/csv writes, `BuildLock`, `run_locked_build()` (identical copy lives in `cdec_maps`) |
 | `usgs_maps/cli.py` | **click** CLI (`usgs_maps` command) |
 | `usgs_maps/usgs_maps_servable.py` | `panel serve` entry point |
 | `usgsui.py` (root) | `pn.serve` server entry (argparse `--address/--port/--no-show`) |
-| `build_usgs_cache.py` (root) | Standalone click cache-build script (server/cron use) |
+| `build_usgs_cache.py` (root) | Standalone click cache-build script, run by the scheduled job via `run_cache_job.sh` |
 
 CLI uses **click** (not argparse). The server entry `usgsui.py` uses argparse
 (mirrors `cdecui.py`).

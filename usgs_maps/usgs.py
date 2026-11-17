@@ -29,6 +29,8 @@ from contextlib import contextmanager
 import param
 import pandas as pd
 
+from . import build_job
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -314,7 +316,7 @@ class Reader(param.Parameterized):
             state_cds=state_cds, bbox=bbox, param_cds=param_cds, site_types=site_types
         )
         out = pd.DataFrame(catalog.drop(columns="geometry"))
-        out.to_csv(self.catalog_csv_path(), index=False)
+        build_job.atomic_to_csv(out, self.catalog_csv_path(), index=False)
         logger.info("save_all_stations_info: wrote %d rows to %s",
                     len(out), self.catalog_csv_path())
         return catalog
@@ -360,7 +362,8 @@ class Reader(param.Parameterized):
         return pd.read_parquet(self.build_db_path(site_no, param_cd, duration_code))
 
     def save_to_db(self, df, site_no, param_cd, duration_code) -> None:
-        df.to_parquet(self.build_db_path(site_no, param_cd, duration_code))
+        # Atomic: the web app may be reading this file while a build job rewrites it.
+        build_job.atomic_to_parquet(df, self.build_db_path(site_no, param_cd, duration_code))
 
     # ------------------------------------------------------------------
     # Time series retrieval

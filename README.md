@@ -85,9 +85,13 @@ python usgsui.py --address 0.0.0.0 --port 80 --no-show
 
 Mirrors `cdec_maps`:
 
-- `run_server.sh` — installs the package and starts `usgsui.py` on `0.0.0.0:80`.
-- `run_server_cache_build.sh` — runs `build_usgs_cache.py` in the background and
-  serves `usgs_maps_servable.py` with `--allow-websocket-origin="*"`.
+- `run_server.sh` — installs the package and starts `usgsui.py` on `0.0.0.0:80`. The web app only serves.
+- `run_cache_job.sh` — entry point of the scheduled cache-build job (runs
+  `build_usgs_cache.py --state ca` by default and exits non-zero on failure).
+  `deploy_cache_job.ps1` creates/updates that Azure Container Apps Job (`-WhatIf` to
+  preview, `-StartNow` to run once). Cache writes are atomic, a lock
+  (`usgs_db/.build.lock`) prevents overlapping builds, and the last outcome is in
+  `usgs_db/build_status.json`.
 - `CARTO_API_KEY` — set it in the environment (an App Service application setting
   in production) to a [CARTO basemaps API key](https://carto.com/basemaps/apikey);
   without it the map tiles show CARTO's "API key required" watermark.
