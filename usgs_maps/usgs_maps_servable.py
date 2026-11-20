@@ -7,7 +7,7 @@ Launch with::
 
 import panel as pn
 
-pn.extension("tabulator", "codeeditor", notifications=True, design="native")
+pn.extension("tabulator", "codeeditor", notifications=True, design="material")
 
 from usgs_maps import usgsuimgr  # noqa: E402
 

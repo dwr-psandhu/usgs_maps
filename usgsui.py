@@ -56,7 +56,7 @@ def main():
     logger.info("Starting USGS NWIS Map Explorer on %s:%s", args.address, args.port)
 
     pn.extension(
-        "tabulator", "codeeditor", notifications=True, design="native",
+        "tabulator", "codeeditor", notifications=True, design="material",
     )
     crs_cartopy = ccrs.PlateCarree()
 
