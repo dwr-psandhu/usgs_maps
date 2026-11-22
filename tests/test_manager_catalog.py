@@ -103,3 +103,16 @@ def test_process_curve_data_tolerates_range_index(fake_catalog, catalog_reader):
     # Must not raise
     result = mgr._process_curve_data(bad_df, row, time_range)
     assert result is not None
+
+
+def test_default_window_uses_recent_non_future_catalog_year(
+    fake_catalog, catalog_reader
+):
+    fake_catalog = fake_catalog.copy()
+    fake_catalog["end_date"] = pd.to_datetime(fake_catalog["end_date"])
+    fake_catalog.loc[0, "end_date"] = pd.Timestamp("2039-12-31")
+    mgr = USGSDataUIManager(fake_catalog, catalog_reader)
+
+    start, end = mgr.get_time_range(mgr.get_data_catalog())
+
+    assert (pd.Timestamp(start).year, pd.Timestamp(end).year) == (2023, 2024)

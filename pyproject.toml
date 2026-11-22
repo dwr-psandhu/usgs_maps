@@ -39,6 +39,7 @@ dependencies = [
     "geoviews",
     "spatialpandas",
     "panel",
+    "panel-material-ui",
     "tqdm",
     "dataretrieval",
     "vtools @ git+https://github.com/CADWRDeltaModeling/vtools3",

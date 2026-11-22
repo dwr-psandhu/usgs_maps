@@ -284,6 +284,12 @@ class USGSDataUIManager(TimeSeriesDataUIManager):
     show_reset_session_button = param.Boolean(default=True)
     session_cookie_name = param.String(default="usgs_user_id")
     disclaimer_text = DWR_DISCLAIMER_TEXT
+    default_window_years = param.Integer(
+        default=2,
+        bounds=(1, 20),
+        label="Default plot window (years)",
+        doc="Number of recent historical years shown initially.",
+    )
 
     bypass_cache = param.Boolean(
         default=False,
@@ -303,7 +309,7 @@ class USGSDataUIManager(TimeSeriesDataUIManager):
         reader : usgs.Reader
             The NWIS reader used for data retrieval and cache management.
         """
-        time_range = kwargs.pop("time_range", None)
+        self._requested_time_range = kwargs.pop("time_range", None)
         self.reader = reader
         self.station_id_column = kwargs.pop("station_id_column", "site_no")
         self.dfcat = dfcat
@@ -316,9 +322,6 @@ class USGSDataUIManager(TimeSeriesDataUIManager):
         )
         self._dvue_catalog = self._build_dvue_catalog(geo_crs)
         super().__init__(**kwargs)
-        # Set time_range after super().__init__ — setting a Parameter before the
-        # Parameterized base is fully instantiated is deprecated in param.
-        self.time_range = time_range
         self.color_cycle_column = "site_no"
         self.dashed_line_cycle_column = "duration"
         self.marker_cycle_column = "param_name"
@@ -410,12 +413,23 @@ class USGSDataUIManager(TimeSeriesDataUIManager):
         return None
 
     def get_time_range(self, dfcat):
-        if self.time_range is None:
-            self.time_range = (
-                datetime.now() - timedelta(days=30),
-                datetime.now(),
-            )
-        return self.time_range
+        """Return a configurable window based on the latest historical catalog date."""
+        if self._requested_time_range is not None:
+            return self._requested_time_range
+        max_year = datetime.now().year
+        if dfcat is not None and "end_date" in dfcat.columns:
+            end_dates = pd.to_datetime(dfcat["end_date"], errors="coerce")
+            end_dates = end_dates[end_dates <= pd.Timestamp.now().normalize()]
+            if not end_dates.empty:
+                max_year = int(end_dates.max().year)
+        start_year = max_year - self.default_window_years + 1
+        return (
+            pd.Timestamp(year=start_year, month=1, day=1),
+            pd.Timestamp(
+                year=max_year, month=12, day=31,
+                hour=23, minute=59, second=59,
+            ),
+        )
 
     def _get_table_column_width_map(self):
         return {
@@ -538,10 +552,6 @@ def show_usgs_ui():
     reader = usgs.Reader()
     catalog = reader.read_saved_stations_info()
     crs_cartopy = ccrs.PlateCarree()
-    time_range = (
-        datetime.now() - timedelta(days=30),
-        datetime.now(),
-    )
-    uimgr = USGSDataUIManager(catalog, reader, time_range=time_range)
+    uimgr = USGSDataUIManager(catalog, reader)
     ui = DataUI(uimgr, crs=crs_cartopy, station_id_column="site_no")
     return ui.create_view(), ui
