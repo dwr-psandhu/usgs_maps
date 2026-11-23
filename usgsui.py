@@ -106,7 +106,7 @@ def main():
             title="USGS NWIS Map Explorer",
             sidebar=[sidebar_panel],
             main=[main_panel],
-            sidebar_width=320,
+            sidebar_width=400,
             sidebar_open=False,
             sidebar_variant="auto",
         )
