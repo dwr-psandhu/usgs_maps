@@ -20,6 +20,9 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
 import tqdm
@@ -40,16 +43,58 @@ def load_build_config(config_path: str) -> dict:
     return json.loads(text)
 
 
-def build_catalog(reader, state_cds=None, bbox=None, param_cds=None, site_types=None):
-    """Build and persist the catalog CSV; return the catalog GeoDataFrame."""
+CATALOG_REFRESH_INTERVAL = 7 * 24 * 60 * 60
+
+
+def build_catalog(
+    reader,
+    state_cds=None,
+    bbox=None,
+    param_cds=None,
+    site_types=None,
+    force_refresh=False,
+):
+    """Build the catalog, falling back to the last good saved catalog."""
     logger.info(
         "build_catalog: states=%s bbox=%s params=%s",
         state_cds, bbox, param_cds or usgs.DEFAULT_PARAM_CDS,
     )
-    catalog = reader.save_all_stations_info(
-        state_cds=state_cds, bbox=bbox, param_cds=param_cds, site_types=site_types
-    )
-    return catalog
+    catalog_path = reader.catalog_csv_path()
+    if (
+        not force_refresh
+        and os.path.exists(catalog_path)
+        and time.time() - os.path.getmtime(catalog_path)
+        <= CATALOG_REFRESH_INTERVAL
+    ):
+        catalog = reader.read_saved_stations_info()
+        if len(catalog):
+            logger.info(
+                "Catalog is current; using %d saved rows from %s",
+                len(catalog),
+                catalog_path,
+            )
+            return catalog
+    try:
+        return reader.save_all_stations_info(
+            state_cds=state_cds,
+            bbox=bbox,
+            param_cds=param_cds,
+            site_types=site_types,
+        )
+    except RuntimeError as exc:
+        try:
+            catalog = reader.read_saved_stations_info()
+        except Exception:
+            raise exc
+        if len(catalog) == 0:
+            raise exc
+        logger.warning(
+            "Catalog refresh failed; using %d rows from %s: %s",
+            len(catalog),
+            reader.catalog_csv_path(),
+            exc,
+        )
+        return catalog
 
 
 def download_all_series(reader, catalog, start=None, end=None, heartbeat=None):
@@ -64,9 +109,7 @@ def download_all_series(reader, catalog, start=None, end=None, heartbeat=None):
         # Default to two years of history when not specified.
         start = (pd.Timestamp(end) - pd.DateOffset(years=2)).strftime("%Y-%m-%d")
 
-    n_ok = n_fail = 0
-    failed_items = []
-    for _, row in tqdm.tqdm(catalog.iterrows(), total=len(catalog), desc="usgs", mininterval=30):
+    def _download(row):
         try:
             reader.read_station_data(
                 str(row["site_no"]),
@@ -75,18 +118,43 @@ def download_all_series(reader, catalog, start=None, end=None, heartbeat=None):
                 start,
                 end,
             )
-            n_ok += 1
+            return True, None
         except Exception as exc:
-            n_fail += 1
-            failed_items.append(
-                f"{row.get('site_no')}/{row.get('param_cd')}/{row.get('duration_code')}"
-            )
             logger.warning(
                 "download failed for %s/%s/%s: %s",
                 row.get("site_no"), row.get("param_cd"), row.get("duration_code"), exc,
             )
-        if heartbeat:
-            heartbeat()
+            return False, (
+                f"{row.get('site_no')}/{row.get('param_cd')}/"
+                f"{row.get('duration_code')}"
+            )
+
+    n_ok = n_fail = 0
+    failed_items = []
+    max_workers = 4
+    rows = [row for _, row in catalog.iterrows()]
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(_download, row) for row in rows]
+        progress = tqdm.tqdm(
+            as_completed(futures),
+            total=len(futures),
+            desc="usgs",
+            mininterval=30,
+        )
+        for future in progress:
+            try:
+                ok, failed_item = future.result()
+            except Exception as exc:
+                ok, failed_item = False, None
+                logger.warning("download worker failed unexpectedly: %s", exc)
+            if ok:
+                n_ok += 1
+            else:
+                n_fail += 1
+                if failed_item:
+                    failed_items.append(failed_item)
+            if heartbeat:
+                heartbeat()
     logger.info("download_all_series: %d ok, %d failed", n_ok, n_fail)
     return {"ok": n_ok, "failed": n_fail, "failed_items": failed_items}
 

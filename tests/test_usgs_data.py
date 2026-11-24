@@ -59,6 +59,39 @@ def test_cache_gap_fill_extends_range(data_reader):
     assert len(df_big) > 0
 
 
+def test_cache_tail_gap_is_single_exact_range(data_reader, monkeypatch):
+    cached = pd.DataFrame(
+        {"VALUE": [1.0, 2.0]},
+        index=pd.to_datetime(["2024-01-01 00:00", "2024-11-20 00:00"]),
+    )
+    data_reader.save_to_db(cached, "11447650", "00060", "E")
+    calls = []
+
+    def _fetch_data(site_no, param_cd, duration_code, start, end):
+        calls.append((site_no, param_cd, duration_code, start, end))
+        return pd.DataFrame(
+            {"VALUE": [3.0]},
+            index=pd.to_datetime([end]),
+        )
+
+    monkeypatch.setattr(data_reader, "_fetch_data", _fetch_data)
+
+    data = data_reader.read_station_data(
+        "11447650", "00060", "E", "2024-11-01", "2024-11-21"
+    )
+
+    assert calls == [
+        (
+            "11447650",
+            "00060",
+            "E",
+            pd.Timestamp("2024-11-20 00:00"),
+            "2024-11-21",
+        )
+    ]
+    assert data.index.max() == pd.Timestamp("2024-11-21 00:00")
+
+
 def test_remove_from_db(data_reader):
     data_reader.read_station_data("11447650", "00060", "E", "2024-01-01", "2024-01-02")
     path = data_reader.build_db_path("11447650", "00060", "E")

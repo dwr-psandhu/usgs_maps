@@ -86,6 +86,36 @@ class TestCatalogProtection:
 
         assert build_job.read_status(dbase)["state"] == "failed"
 
+    def test_build_uses_saved_catalog_after_refresh_failure(
+        self, catalog_reader, monkeypatch
+    ):
+        expected = catalog_reader.save_all_stations_info(state_cds=["ca"])
+        self._empty_catalog_result(monkeypatch)
+
+        actual = usgs_cache_build.build_catalog(
+            catalog_reader, state_cds=["ca"]
+        )
+
+        assert len(actual) == len(expected) == 3
+
+    def test_build_reuses_current_saved_catalog_without_nwis_call(
+        self, catalog_reader, monkeypatch
+    ):
+        catalog_reader.save_all_stations_info(state_cds=["ca"])
+
+        def unexpected(*args, **kwargs):
+            raise AssertionError("fresh saved catalog should avoid NWIS")
+
+        monkeypatch.setattr(
+            usgs.Reader, "save_all_stations_info", unexpected
+        )
+
+        actual = usgs_cache_build.build_catalog(
+            catalog_reader, state_cds=["ca"]
+        )
+
+        assert len(actual) == 3
+
     def test_dropped_response_is_retried(self, reader, monkeypatch):
         monkeypatch.setattr(usgs, "CATALOG_QUERY_RETRY_DELAY", 0)
         calls = []

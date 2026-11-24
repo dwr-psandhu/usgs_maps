@@ -310,6 +310,7 @@ class USGSDataUIManager(TimeSeriesDataUIManager):
             The NWIS reader used for data retrieval and cache management.
         """
         self._requested_time_range = kwargs.pop("time_range", None)
+        shared_catalog = kwargs.pop("shared_catalog", None)
         self.reader = reader
         self.station_id_column = kwargs.pop("station_id_column", "site_no")
         self.dfcat = dfcat
@@ -320,7 +321,11 @@ class USGSDataUIManager(TimeSeriesDataUIManager):
             if hasattr(self.dfcat, "crs") and self.dfcat.crs is not None
             else "EPSG:4326"
         )
-        self._dvue_catalog = self._build_dvue_catalog(geo_crs)
+        self._dvue_catalog = (
+            self._copy_dvue_catalog(shared_catalog)
+            if shared_catalog is not None
+            else self._build_dvue_catalog(geo_crs)
+        )
         super().__init__(**kwargs)
         self.color_cycle_column = "site_no"
         self.dashed_line_cycle_column = "duration"
@@ -362,6 +367,18 @@ class USGSDataUIManager(TimeSeriesDataUIManager):
             "_build_dvue_catalog: catalog ready — %d refs, %d skipped (%.1fs)",
             len(catalog._references), skipped, time.perf_counter() - t0,
         )
+        return catalog
+
+    @staticmethod
+    def _copy_dvue_catalog(source: DataCatalog) -> DataCatalog:
+        """Copy catalog state per session while sharing read-only references."""
+        catalog = DataCatalog(primary_key=source.primary_key, crs=source._crs)
+        catalog._references = source._references.copy()
+        catalog._source_index = source._source_index.copy()
+        catalog._pk_to_name = source._pk_to_name.copy()
+        catalog._math_ref_count = source._math_ref_count
+        catalog._schema_map = source._schema_map.copy()
+        catalog._builders = list(source._builders)
         return catalog
 
     # data related methods --------------------------------------------

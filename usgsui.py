@@ -33,10 +33,32 @@ def build_usgs_manager(time_range=None):
     from usgs_maps.usgsuimgr import USGSDataUIManager
 
     reader = usgs.Reader()
-    catalog = _shared_usgs_catalog().copy(deep=True)
+    catalog, shared_catalog, reader = _shared_ui_catalog()
+    catalog = catalog.copy(deep=True)
     logger.info("build_usgs_manager: catalog has %d series", len(catalog))
 
-    return USGSDataUIManager(catalog, reader, time_range=time_range)
+    return USGSDataUIManager(
+        catalog,
+        reader,
+        time_range=time_range,
+        shared_catalog=shared_catalog,
+    )
+
+
+@lru_cache(maxsize=1)
+def _shared_ui_catalog():
+    """Prebuild USGS references once and reuse them across browser sessions."""
+    from usgs_maps import usgs
+    from usgs_maps.usgsuimgr import USGSDataReferenceReader, USGSDataUIManager
+
+    catalog = _shared_usgs_catalog().copy(deep=True)
+    reader = usgs.Reader()
+    template = USGSDataUIManager.__new__(USGSDataUIManager)
+    template.dfcat = catalog
+    template._dvue_reader = USGSDataReferenceReader(reader)
+    crs = str(catalog.crs) if hasattr(catalog, "crs") else "EPSG:4326"
+    dvue_catalog = template._build_dvue_catalog(crs)
+    return catalog, dvue_catalog, reader
 
 
 def main():
@@ -68,6 +90,8 @@ def main():
     pn.extension(
         "tabulator", "codeeditor", notifications=True, design="material",
     )
+    logger.info("Prebuilding shared USGS station catalog …")
+    _shared_ui_catalog()
     crs_cartopy = ccrs.PlateCarree()
     install_session_handler(cookie_name="usgs_user_id")
     session_mgr = SessionManager(cookie_name="usgs_user_id", persist=False)

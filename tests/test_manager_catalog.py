@@ -48,6 +48,21 @@ def test_manager_get_data_reference_by_name(fake_catalog, catalog_reader):
     assert ref.name == row["name"]
 
 
+def test_manager_can_clone_shared_catalog(fake_catalog, catalog_reader):
+    original = USGSDataUIManager(fake_catalog, catalog_reader)
+
+    cloned = USGSDataUIManager(
+        fake_catalog,
+        catalog_reader,
+        shared_catalog=original.data_catalog,
+    )
+
+    assert cloned.data_catalog is not original.data_catalog
+    assert list(cloned.data_catalog._references) == list(
+        original.data_catalog._references
+    )
+
+
 def test_manager_loads_data_through_reference(fake_catalog, data_reader):
     # data_reader monkeypatches _fetch_raw; reuse it as the manager's reader.
     mgr = USGSDataUIManager(fake_catalog, data_reader)
